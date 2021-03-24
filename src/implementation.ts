@@ -4,31 +4,67 @@ enum Status {
   REJECTED,
 }
 
+interface Callback {
+  resolve?: Function
+  reject?: Function
+  onFulfilled?: Function
+  onRejected?: Function
+}
+
 class PromiseAplus {
   status: Status = Status.PENDING
   value: any
   reason: any
 
-  private onFulfilledCallbacks: Function[] = []
-  private onRejectedCallbacks: Function[] = []
+  private callbacks: Callback[] = []
+
+  static resolve(value: any) {
+    const promise = new PromiseAplus()
+    promise.status = Status.FULFILLED
+    promise.value = value
+    return promise
+  }
+
+  static reject(reason: any) {
+    const promise = new PromiseAplus()
+    promise.status = Status.REJECTED
+    promise.reason = reason
+    return promise
+  }
 
   constructor(
-    executor: (
+    executor?: (
       resolve: (value: any) => void,
       reject: (value: any) => void
     ) => void
   ) {
-    executor(this.resolve.bind(this), this.reject.bind(this))
+    executor?.(this.resolve.bind(this), this.reject.bind(this))
   }
 
   then(onFulfilled?: Function, onRejected?: Function) {
+    if (this.status === Status.FULFILLED && typeof onFulfilled !== 'function') {
+      return PromiseAplus.resolve(this.value)
+    }
+
+    if (this.status === Status.REJECTED && typeof onRejected !== 'function') {
+      return PromiseAplus.reject(this.reason)
+    }
+
+    const callback: Callback = {}
+    const promise = new PromiseAplus((resolve, reject) => {
+      callback.resolve = resolve
+      callback.reject = reject
+    })
+
     if (typeof onFulfilled === 'function') {
-      this.onFulfilledCallbacks.push(onFulfilled)
+      callback.onFulfilled = onFulfilled
     }
 
     if (typeof onRejected === 'function') {
-      this.onRejectedCallbacks.push(onRejected)
+      callback.onRejected = onRejected
     }
+
+    this.callbacks.push(callback)
 
     if (this.status === Status.FULFILLED) {
       this.handleFulfilled()
@@ -38,7 +74,7 @@ class PromiseAplus {
       this.handleRejected()
     }
 
-    return this
+    return promise
   }
 
   private resolve(value: any) {
@@ -58,21 +94,33 @@ class PromiseAplus {
   }
 
   private handleFulfilled() {
-    this.onFulfilledCallbacks.forEach((callback) => {
+    for (let { onFulfilled, reject, resolve } of this.callbacks) {
       setImmediate(() => {
-        callback(this.value)
+        try {
+          const ret = onFulfilled?.(this.value)
+          resolve?.(ret)
+        } catch (e) {
+          reject?.(e)
+        }
       })
-    })
-    this.onFulfilledCallbacks = []
+    }
+
+    this.callbacks = []
   }
 
   private handleRejected() {
-    this.onRejectedCallbacks.forEach((callback) => {
+    for (let { onRejected, reject, resolve } of this.callbacks) {
       setImmediate(() => {
-        callback(this.reason)
+        try {
+          const ret = onRejected?.(this.value)
+          resolve?.(ret)
+        } catch (e) {
+          reject?.(e)
+        }
       })
-    })
-    this.onRejectedCallbacks = []
+    }
+
+    this.callbacks = []
   }
 }
 
