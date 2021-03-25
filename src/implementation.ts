@@ -4,10 +4,16 @@ enum Status {
   REJECTED,
 }
 
+type PromiseValue = any
+type PromiseReason = any
+
+type ResolveFunction = (value: PromiseValue) => void
+type RejectFunction = (reason: PromiseReason) => void
+
 interface Callback {
   promise: PromiseAplus
-  resolve: Function
-  reject: Function
+  resolve: ResolveFunction
+  reject: RejectFunction
   onFulfilled?: Function
   onRejected?: Function
 }
@@ -15,8 +21,8 @@ interface Callback {
 function resolvePromise(
   promise: PromiseAplus,
   x: any,
-  resolve: Function,
-  reject: Function
+  resolve: ResolveFunction,
+  reject: RejectFunction
 ) {
   if (promise === x) {
     reject(new TypeError())
@@ -25,8 +31,8 @@ function resolvePromise(
   if (x instanceof PromiseAplus) {
     if (x.status === Status.PENDING) {
       x.then(
-        (value: any) => resolve(value),
-        (reason: any) => reject(reason)
+        (value: PromiseValue) => resolve(value),
+        (reason: PromiseReason) => reject(reason)
       )
     } else if (x.status === Status.FULFILLED) {
       resolve(x.value)
@@ -44,8 +50,8 @@ function resolvePromise(
 
     if (typeof then === 'function') {
       x.then(
-        (value: any) => resolvePromise(promise, value, resolve, reject),
-        (reason: any) => reject(reason)
+        (value: PromiseValue) => resolvePromise(promise, value, resolve, reject),
+        (reason: PromiseReason) => reject(reason)
       )
     }
   } else {
@@ -55,31 +61,26 @@ function resolvePromise(
 
 class PromiseAplus {
   status: Status = Status.PENDING
-  value: any
-  reason: any
+  value: PromiseValue
+  reason: PromiseReason
 
   private callbacks: Callback[] = []
 
-  static resolve(value: any) {
+  static resolve(value: PromiseValue) {
     const promise = new PromiseAplus()
     promise.status = Status.FULFILLED
     promise.value = value
     return promise
   }
 
-  static reject(reason: any) {
+  static reject(reason: PromiseReason) {
     const promise = new PromiseAplus()
     promise.status = Status.REJECTED
     promise.reason = reason
     return promise
   }
 
-  constructor(
-    executor?: (
-      resolve: (value: any) => void,
-      reject: (value: any) => void
-    ) => void
-  ) {
+  constructor(executor?: (resolve: ResolveFunction, reject: RejectFunction) => void) {
     executor?.(this.resolve.bind(this), this.reject.bind(this))
   }
 
@@ -92,8 +93,8 @@ class PromiseAplus {
       return PromiseAplus.reject(this.reason)
     }
 
-    let rej: Function
-    let res: Function
+    let res: ResolveFunction
+    let rej: RejectFunction
     const promise = new PromiseAplus((resolve, reject) => {
       res = resolve
       rej = reject
@@ -122,7 +123,7 @@ class PromiseAplus {
     return callback.promise
   }
 
-  private resolve(value: any) {
+  private resolve(value: PromiseValue) {
     if (this.status === Status.PENDING) {
       this.status = Status.FULFILLED
       this.value = value
@@ -130,7 +131,7 @@ class PromiseAplus {
     }
   }
 
-  private reject(reason: any) {
+  private reject(reason: PromiseReason) {
     if (this.status === Status.PENDING) {
       this.status = Status.REJECTED
       this.reason = reason
@@ -139,8 +140,7 @@ class PromiseAplus {
   }
 
   private invokeCallbacks() {
-    for (let { onFulfilled, onRejected, promise, reject, resolve } of this
-      .callbacks) {
+    for (let { onFulfilled, onRejected, promise, reject, resolve } of this.callbacks) {
       const statusToCallbackFn = {
         [Status.PENDING]: undefined,
         [Status.FULFILLED]: onFulfilled,
