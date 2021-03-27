@@ -39,7 +39,7 @@ function resolvePromise(
     } else if (x.status === Status.REJECTED) {
       reject(x.reason)
     }
-  } else if (x instanceof Object) {
+  } else if (x && (typeof x === 'object' || typeof x === 'function')) {
     let then
 
     try {
@@ -49,7 +49,8 @@ function resolvePromise(
     }
 
     if (typeof then === 'function') {
-      x.then(
+      then.call(
+        x,
         (value: PromiseValue) => resolvePromise(promise, value, resolve, reject),
         (reason: PromiseReason) => reject(reason)
       )
@@ -66,33 +67,11 @@ class PromiseAplus {
 
   private callbacks: Callback[] = []
 
-  static resolve(value: PromiseValue) {
-    const promise = new PromiseAplus()
-    promise.status = Status.FULFILLED
-    promise.value = value
-    return promise
-  }
-
-  static reject(reason: PromiseReason) {
-    const promise = new PromiseAplus()
-    promise.status = Status.REJECTED
-    promise.reason = reason
-    return promise
-  }
-
   constructor(executor?: (resolve: ResolveFunction, reject: RejectFunction) => void) {
     executor?.(this.resolve.bind(this), this.reject.bind(this))
   }
 
   then(onFulfilled?: Function, onRejected?: Function) {
-    if (this.status === Status.FULFILLED && typeof onFulfilled !== 'function') {
-      return PromiseAplus.resolve(this.value)
-    }
-
-    if (this.status === Status.REJECTED && typeof onRejected !== 'function') {
-      return PromiseAplus.reject(this.reason)
-    }
-
     let res: ResolveFunction
     let rej: RejectFunction
     const promise = new PromiseAplus((resolve, reject) => {
@@ -146,6 +125,11 @@ class PromiseAplus {
         [Status.FULFILLED]: onFulfilled,
         [Status.REJECTED]: onRejected,
       }
+      const statusToFallbackFn = {
+        [Status.PENDING]: undefined,
+        [Status.FULFILLED]: resolve,
+        [Status.REJECTED]: reject,
+      }
       const statusToArgument = {
         [Status.PENDING]: undefined,
         [Status.FULFILLED]: this.value,
@@ -156,11 +140,12 @@ class PromiseAplus {
 
       setImmediate(() => {
         if (!callbackFn) {
-          return
+          const fallbackFn = statusToFallbackFn[this.status]
+          return fallbackFn?.(argument)
         }
 
         try {
-          const x = callbackFn(argument)
+          const x = callbackFn?.(argument)
           resolvePromise(promise, x, resolve, reject)
         } catch (e) {
           reject(e)
