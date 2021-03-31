@@ -1,10 +1,10 @@
 import PromiseAplus from './implementation'
 
-export function resolved(value: any) {
+export function resolved(value?: any) {
   return new PromiseAplus((resolve) => resolve(value))
 }
 
-export function rejected(reason: any) {
+export function rejected(reason?: any) {
   return new PromiseAplus((resolve, reject) => reject(reason))
 }
 

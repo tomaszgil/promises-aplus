@@ -29,16 +29,10 @@ function resolvePromise(
   }
 
   if (x instanceof PromiseAplus) {
-    if (x.status === Status.PENDING) {
-      x.then(
-        (value: PromiseValue) => resolve(value),
-        (reason: PromiseReason) => reject(reason)
-      )
-    } else if (x.status === Status.FULFILLED) {
-      resolve(x.value)
-    } else if (x.status === Status.REJECTED) {
-      reject(x.reason)
-    }
+    x.then(
+      (value: PromiseValue) => resolve(value),
+      (reason: PromiseReason) => reject(reason)
+    )
   } else if (x && (typeof x === 'object' || typeof x === 'function')) {
     let then
 
@@ -61,9 +55,9 @@ function resolvePromise(
 }
 
 class PromiseAplus {
-  status: Status = Status.PENDING
-  value: PromiseValue
-  reason: PromiseReason
+  private status: Status = Status.PENDING
+  private value: PromiseValue
+  private reason: PromiseReason
 
   private callbacks: Callback[] = []
 
@@ -102,7 +96,7 @@ class PromiseAplus {
     return callback.promise
   }
 
-  private resolve(value: PromiseValue) {
+  private resolve(value?: PromiseValue) {
     if (this.status === Status.PENDING) {
       this.status = Status.FULFILLED
       this.value = value
@@ -110,7 +104,7 @@ class PromiseAplus {
     }
   }
 
-  private reject(reason: PromiseReason) {
+  private reject(reason?: PromiseReason) {
     if (this.status === Status.PENDING) {
       this.status = Status.REJECTED
       this.reason = reason
@@ -119,26 +113,26 @@ class PromiseAplus {
   }
 
   private invokeCallbacks() {
-    for (let { onFulfilled, onRejected, promise, reject, resolve } of this.callbacks) {
-      const statusToCallbackFn = {
-        [Status.PENDING]: undefined,
-        [Status.FULFILLED]: onFulfilled,
-        [Status.REJECTED]: onRejected,
-      }
-      const statusToFallbackFn = {
-        [Status.PENDING]: undefined,
-        [Status.FULFILLED]: resolve,
-        [Status.REJECTED]: reject,
-      }
-      const statusToArgument = {
-        [Status.PENDING]: undefined,
-        [Status.FULFILLED]: this.value,
-        [Status.REJECTED]: this.reason,
-      }
-      const callbackFn = statusToCallbackFn[this.status]
-      const argument = statusToArgument[this.status]
+    setImmediate((callbacks) => {
+      for (let { onFulfilled, onRejected, promise, reject, resolve } of callbacks) {
+        const statusToCallbackFn = {
+          [Status.PENDING]: undefined,
+          [Status.FULFILLED]: onFulfilled,
+          [Status.REJECTED]: onRejected,
+        }
+        const statusToFallbackFn = {
+          [Status.PENDING]: undefined,
+          [Status.FULFILLED]: resolve,
+          [Status.REJECTED]: reject,
+        }
+        const statusToArgument = {
+          [Status.PENDING]: undefined,
+          [Status.FULFILLED]: this.value,
+          [Status.REJECTED]: this.reason,
+        }
+        const callbackFn = statusToCallbackFn[this.status]
+        const argument = statusToArgument[this.status]
 
-      setImmediate(() => {
         if (!callbackFn) {
           const fallbackFn = statusToFallbackFn[this.status]
           return fallbackFn?.(argument)
@@ -150,8 +144,8 @@ class PromiseAplus {
         } catch (e) {
           reject(e)
         }
-      })
-    }
+      }
+    }, this.callbacks)
 
     this.callbacks = []
   }
