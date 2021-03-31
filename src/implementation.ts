@@ -43,11 +43,31 @@ function resolvePromise(
     }
 
     if (typeof then === 'function') {
-      then.call(
-        x,
-        (value: PromiseValue) => resolvePromise(promise, value, resolve, reject),
-        (reason: PromiseReason) => reject(reason)
-      )
+      let called = false
+
+      try {
+        then.call(
+          x,
+          (value: PromiseValue) => {
+            if (!called) {
+              called = true
+              resolvePromise(promise, value, resolve, reject)
+            }
+          },
+          (reason: PromiseReason) => {
+            if (!called) {
+              called = true
+              reject(reason)
+            }
+          }
+        )
+      } catch (e) {
+        if (!called) {
+          reject(e)
+        }
+      }
+    } else {
+      resolve(x)
     }
   } else {
     resolve(x)
