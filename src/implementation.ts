@@ -155,7 +155,8 @@ class PromiseAplus {
 
         if (!callbackFn) {
           const fallbackFn = statusToFallbackFn[this.status]
-          return fallbackFn?.(argument)
+          fallbackFn?.(argument)
+          continue
         }
 
         try {
