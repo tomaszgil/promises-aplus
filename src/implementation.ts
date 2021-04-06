@@ -30,7 +30,7 @@ function resolvePromise(
 
   if (x instanceof PromiseAplus) {
     x.then(
-      (value: PromiseValue) => resolve(value),
+      (value: PromiseValue) => resolvePromise(promise, value, resolve, reject),
       (reason: PromiseReason) => reject(reason)
     )
   } else if (x && (typeof x === 'object' || typeof x === 'function')) {
@@ -50,14 +50,14 @@ function resolvePromise(
           x,
           (value: PromiseValue) => {
             if (!called) {
-              called = true
               resolvePromise(promise, value, resolve, reject)
+              called = true
             }
           },
           (reason: PromiseReason) => {
             if (!called) {
-              called = true
               reject(reason)
+              called = true
             }
           }
         )
